@@ -1,7 +1,6 @@
 const md = require('markdown-it')
 const mdAttrs = require('markdown-it-attrs')
 const mdDecorate = require('markdown-it-decorate')
-const markdownItPdf = require('markdown-it-pdf') // 新增：引入 PDF 插件
 const _ = require('lodash')
 const underline = require('./underline')
 const pdfRender = require('./pdf-render')
