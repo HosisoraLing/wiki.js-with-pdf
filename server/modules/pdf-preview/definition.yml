@@ -1,0 +1,6 @@
+key: pdf-preview
+title: PDF Preview Support
+description: 在 Markdown 中嵌入 PDF 预览
+author: Your Name
+version: 1.0.0
+enabled: true
