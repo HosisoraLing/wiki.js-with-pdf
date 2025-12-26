@@ -31,7 +31,6 @@ module.exports = function (md, options = {}) {
     return defaultRatio
   }
 
-  // 动态计算padding-bottom
   function calculatePaddingBottom(ratio) {
     const parts = ratio.split('/')
     if (parts.length !== 2) return '56.25%'
@@ -41,7 +40,6 @@ module.exports = function (md, options = {}) {
 
     if (!width || !height) return '56.25%'
 
-    // padding-bottom = height / width * 100%
     const percentage = (height / width * 100).toFixed(2)
     return percentage + '%'
   }
@@ -55,31 +53,39 @@ module.exports = function (md, options = {}) {
     const hrefIndex = token.attrIndex('href')
 
     if (hrefIndex >= 0) {
-      let href = token.attrs[hrefIndex][1]
-      const cleanHref = href.split('#')[0]
+      const originalHref = token.attrs[hrefIndex][1]
 
-      if (cleanHref.toLowerCase().endsWith('.pdf')) {
-        let ratio = defaultRatio
+      // 关键：先检查是否是PDF，避免影响其他文件
+      const cleanHref = originalHref.split('#')[0]
 
-        const hashIndex = href.indexOf('#')
-        if (hashIndex >= 0) {
-          const hash = href.substring(hashIndex + 1)
-          if (hash) {
-            ratio = parseRatio(hash)
-          }
+      // 严格PDF检测：只处理以.pdf结尾的链接
+      if (!cleanHref.toLowerCase().endsWith('.pdf')) {
+        // 非PDF文件，返回原始渲染，不做任何处理
+        return defaultRender(tokens, idx, options, env, self)
+      }
+
+      // 只有PDF文件才会继续执行
+      let ratio = defaultRatio
+
+      // 从原始URL解析hash（不截断，避免影响视频等）
+      const hashIndex = originalHref.indexOf('#')
+      if (hashIndex >= 0) {
+        const hash = originalHref.substring(hashIndex + 1)
+        if (hash) {
+          ratio = parseRatio(hash)
         }
+      }
 
-        const viewerUrl = `${pdfjsPath}?file=${cleanHref}`
-        const paddingBottom = calculatePaddingBottom(ratio)
+      const viewerUrl = `${pdfjsPath}?file=${cleanHref}`
+      const paddingBottom = calculatePaddingBottom(ratio)
 
-        return `
+      return `
 <div style="margin:1rem 0;background:#f5f5f5;border-radius:8px;overflow:hidden;width:100%;max-width:100%;box-sizing:border-box;border:1px solid #e0e0e0;">
   <div style="position:relative;width:100%;background:white;padding-bottom:${paddingBottom};">
     <iframe src="${viewerUrl}" title="PDF预览" width="100%" height="100%" frameborder="0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;margin:0;display:block;min-height:400px;"></iframe>
   </div>
 </div>
-        `
-      }
+      `
     }
 
     return defaultRender(tokens, idx, options, env, self)
