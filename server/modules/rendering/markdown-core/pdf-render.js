@@ -1,42 +1,87 @@
-module.exports = function (md, options) {
-  // 覆盖默认的链接渲染规则
+module.exports = function (md, options = {}) {
+  const {
+    pdfjsPath = '/pdfjs/web/viewer.html',
+    defaultRatio = '16/9'
+  } = options
+
+  const ratioPresets = {
+    'p': '16/9',
+    'h': '297/210',
+    'v': '210/297',
+    'ppt': '16/9',
+    '横向a4': '297/210',
+    'a4横向': '297/210',
+    '纵向a4': '210/297',
+    'a4纵向': '210/297'
+  }
+
+  function parseRatio(input) {
+    if (!input) return defaultRatio
+    const key = input.toLowerCase().trim()
+
+    if (ratioPresets[key]) {
+      return ratioPresets[key]
+    }
+
+    // 支持 4/3 或 4:3 或 9:16 等任意格式
+    if (input.match(/^\d+\/\d+$/) || input.match(/^\d+:\d+$/)) {
+      return input.replace(':', '/')
+    }
+
+    return defaultRatio
+  }
+
+  // 动态计算padding-bottom
+  function calculatePaddingBottom(ratio) {
+    const parts = ratio.split('/')
+    if (parts.length !== 2) return '56.25%'
+
+    const width = parseFloat(parts[0])
+    const height = parseFloat(parts[1])
+
+    if (!width || !height) return '56.25%'
+
+    // padding-bottom = height / width * 100%
+    const percentage = (height / width * 100).toFixed(2)
+    return percentage + '%'
+  }
+
   const defaultRender = md.renderer.rules.link_open || function (tokens, idx, options, env, self) {
     return self.renderToken(tokens, idx, options)
   }
 
   md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
-    const hrefIndex = tokens[idx].attrIndex('href')
-    if (hrefIndex >= 0) {
-      const href = tokens[idx].attrs[hrefIndex][1]
+    const token = tokens[idx]
+    const hrefIndex = token.attrIndex('href')
 
-      // 判断是否为 PDF 文件链接
-      if (href.toLowerCase().endsWith('.pdf')) {
-        // 获取链接的文本（标题）
-        let title = ''
-        for (let i = idx + 1; i < tokens.length; i++) {
-          if (tokens[i].type === 'link_close') break
-          if (tokens[i].type === 'text') title = tokens[idx].content
+    if (hrefIndex >= 0) {
+      let href = token.attrs[hrefIndex][1]
+      const cleanHref = href.split('#')[0]
+
+      if (cleanHref.toLowerCase().endsWith('.pdf')) {
+        let ratio = defaultRatio
+
+        const hashIndex = href.indexOf('#')
+        if (hashIndex >= 0) {
+          const hash = href.substring(hashIndex + 1)
+          if (hash) {
+            ratio = parseRatio(hash)
+          }
         }
 
-        // 构建指向 PDF.js 查看器的 URL
-        // 假设你的 pdfjs 文件夹放在网站根目录，访问路径为 `/assets/pdfjs/`
-        const viewerUrl = `/pdfjs/web/viewer.html?file=${href}`
+        const viewerUrl = `${pdfjsPath}?file=${cleanHref}`
+        const paddingBottom = calculatePaddingBottom(ratio)
 
-        // 返回 iframe 代码，完全替换原链接
-        // 设置高度并隐藏边框以获得更好体验
-        return `<div class="iframe-container">
-                  <iframe
-                    src="${viewerUrl}"
-                    title="PDF预览: ${title}"
-                    width="100%"
-                    style="aspect-ratio: 210 / 297; height: auto;"
-                    frameborder="0"
-                    class="wiki-pdf-frame">
-                  </iframe>
-                </div>`
+        return `
+<div style="margin:1rem 0;background:#f5f5f5;border-radius:8px;overflow:hidden;width:100%;max-width:100%;box-sizing:border-box;border:1px solid #e0e0e0;">
+  <div style="position:relative;width:100%;background:white;padding-bottom:${paddingBottom};">
+    <iframe src="${viewerUrl}" title="PDF预览" width="100%" height="100%" frameborder="0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;margin:0;display:block;min-height:400px;"></iframe>
+  </div>
+</div>
+        `
       }
     }
-    // 非 PDF 链接，使用默认渲染方式
+
     return defaultRender(tokens, idx, options, env, self)
   }
 }
